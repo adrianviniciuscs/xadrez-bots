@@ -58,41 +58,6 @@ class MeuNovoBot(ChessBot):
         moves = list(board.legal_moves)
         return random.choice(moves)  # Exemplo simples
 ```
-
-## Bots Incluídos
-
-O sistema já vem com alguns bots simples prontos para uso:
-
-- **RandomBot**: Faz movimentos aleatórios.
-- **AggressiveBot**: Prefere capturar peças do oponente.
-- **DefensiveBot**: Tenta evitar perdas e movimentos arriscados.
-- **ParanoidBot**: Tenta se afastar das peças do oponente.
-- **ChaoticBot**: Movimentos imprevisíveis baseados no tempo atual.
-
-## Exemplo de Execução
-
-Ao executar o programa, você verá um menu como este:
-
-```
-=== Torneio de Xadrez entre Bots ===
-
-Bots disponíveis (5):
-1. Random Bot (RandomBot)
-2. Aggressive Bot (AggressiveBot)
-3. Defensive Bot (DefensiveBot)
-4. Paranoid Bot (ParanoidBot)
-5. Chaotic Bot (ChaoticBot)
-
-Opções:
-1. Executar torneio round-robin completo
-2. Assistir a uma partida específica
-3. Sair
-```
-
-### Visualização dos jogos
-
-Quando você escolhe assistir a uma partida, uma página HTML será aberta no seu navegador padrão mostrando o tabuleiro de xadrez e atualizando automaticamente a cada movimento.
-
 ## Licença
 
 Este projeto está sob a licença MIT.

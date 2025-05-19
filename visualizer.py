@@ -13,7 +13,8 @@ import cairosvg
 import io
 from PIL import Image
 import numpy as np
-from typing import Tuple, Optional
+import math
+from typing import Tuple, Optional, Dict
 
 class ChessVisualizer:
     """Classe para visualizar partidas de xadrez usando Pygame."""
@@ -51,6 +52,22 @@ class ChessVisualizer:
         
         # Superfície para renderizar o tabuleiro
         self.board_surface = pygame.Surface((self.board_size, self.board_size))
+        
+        # Configuração da barra de avaliação
+        self.eval_bar_width = 30
+        self.eval_bar_height = self.board_size
+        self.current_eval = 0.0  # Avaliação atual (positiva favorece as brancas, negativa as pretas)
+        self.max_eval = 10.0  # Valor máximo de avaliação
+        
+        # Valores das peças usados para avaliação
+        self.piece_values = {
+            chess.PAWN: 1,
+            chess.KNIGHT: 3,
+            chess.BISHOP: 3,
+            chess.ROOK: 5,
+            chess.QUEEN: 9,
+            chess.KING: 100  # Valor alto para o rei
+        }
     
     def svg_to_pygame_surface(self, svg_string: str) -> pygame.Surface:
         """
@@ -115,6 +132,51 @@ class ChessVisualizer:
         # Converte para superfície Pygame
         self.board_surface = self.svg_to_pygame_surface(svg_string)
     
+    def calculate_evaluation(self, board: chess.Board) -> float:
+        """
+        Calcula a avaliação da posição atual.
+        
+        Args:
+            board: Objeto Board de chess representando o estado atual.
+            
+        Returns:
+            Avaliação da posição (positiva favorece as brancas, negativa as pretas).
+        """
+        eval_score = 0.0
+        
+        for square in chess.SQUARES:
+            piece = board.piece_at(square)
+            if piece:
+                value = self.piece_values.get(piece.piece_type, 0)
+                if piece.color == chess.WHITE:
+                    eval_score += value
+                else:
+                    eval_score -= value
+        
+        return eval_score
+    
+    def render_eval_bar(self) -> None:
+        """
+        Renderiza a barra de avaliação na tela.
+        """
+        bar_x = self.width - self.eval_bar_width - 10
+        bar_y = 40
+        bar_rect = pygame.Rect(bar_x, bar_y, self.eval_bar_width, self.eval_bar_height)
+        
+        # Fundo da barra
+        pygame.draw.rect(self.screen, (200, 200, 200), bar_rect)
+        
+        # Posição da avaliação
+        eval_height = int((self.current_eval / self.max_eval) * self.eval_bar_height / 2)
+        eval_height = max(-self.eval_bar_height // 2, min(self.eval_bar_height // 2, eval_height))
+        
+        if eval_height > 0:
+            eval_rect = pygame.Rect(bar_x, bar_y + self.eval_bar_height // 2 - eval_height, self.eval_bar_width, eval_height)
+            pygame.draw.rect(self.screen, (255, 255, 255), eval_rect)
+        elif eval_height < 0:
+            eval_rect = pygame.Rect(bar_x, bar_y + self.eval_bar_height // 2, self.eval_bar_width, -eval_height)
+            pygame.draw.rect(self.screen, (0, 0, 0), eval_rect)
+    
     def render_info_panel(self, board: chess.Board) -> None:
         """
         Renderiza o painel de informações.
@@ -135,7 +197,8 @@ class ChessVisualizer:
             f"Último movimento: {self.last_move}",
             f"Vez de: {turn} ({current_bot})",
             f"Cooldown: {self.cooldown/1000:.1f}s (Use +/- para ajustar)",
-            f"{self.white_bot_name} (Brancas) vs {self.black_bot_name} (Pretas)"
+            f"{self.white_bot_name} (Brancas) vs {self.black_bot_name} (Pretas)",
+            f"Avaliação: {self.current_eval:.2f}"
         ]
         
         # Renderiza textos
@@ -196,6 +259,9 @@ class ChessVisualizer:
         self.last_move = "Nenhum"
         self.is_running = True
         
+        # Calcular avaliação inicial da posição
+        self.current_eval = self.calculate_evaluation(board)
+        
         # Timer para cooldown entre movimentos
         pygame.time.set_timer(pygame.USEREVENT, self.cooldown)
         
@@ -218,14 +284,19 @@ class ChessVisualizer:
                             board, move_san = move_callback(board)
                             self.move_count += 1
                             self.last_move = f"{current_bot}: {move_san}"
+                            # Atualiza a avaliação após o movimento
+                            self.current_eval = self.calculate_evaluation(board)
                         else:
                             game_over = True
                             if board.result() == "1-0":
                                 result = "white"
+                                self.current_eval = self.max_eval  # Vitória das brancas
                             elif board.result() == "0-1":
                                 result = "black"
+                                self.current_eval = -self.max_eval  # Vitória das pretas
                             else:
                                 result = "draw"
+                                self.current_eval = 0  # Empate
                     except Exception as e:
                         print(f"Erro ao executar movimento: {e}")
                         game_over = True
@@ -259,6 +330,7 @@ class ChessVisualizer:
             self.update_board(board)
             self.screen.blit(self.board_surface, (40, 40))
             self.render_info_panel(board)
+            self.render_eval_bar()
             
             if game_over:
                 self.render_result(result)

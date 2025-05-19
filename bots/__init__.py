@@ -14,6 +14,9 @@ from bots.revenge_luck_bot import RevengeLuckBot
 from bots.diagonal_bot import DiagonalBot
 from bots.return_line_bot import ReturnLineBot
 from bots.ocd_bot import OCDBot
+from bots.fractal_bot import FractalBot
+from bots.spectral_bot import SpectralBot
+from bots.strategic_bot import StrategicBot
 
 __all__ = [
     'RandomBot',
@@ -29,5 +32,8 @@ __all__ = [
     'RevengeLuckBot',
     'DiagonalBot',
     'ReturnLineBot',
-    'OCDBot'
+    'OCDBot',
+    'FractalBot',
+    'SpectralBot',
+    'StrategicBot'
 ]

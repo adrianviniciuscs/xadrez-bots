@@ -7,6 +7,7 @@ Torneio automatizado de Xadrez entre bots
 
 import chess
 import chess.svg
+import chess.pgn
 import random
 import time
 import itertools
@@ -21,223 +22,16 @@ import matplotlib.pyplot as plt
 import numpy as np
 # Import visualizer
 from visualizer import ChessVisualizer
-
-# Classe base para os bots de xadrez
-class ChessBot(ABC):
-    """Classe base para implementação de bots de xadrez."""
-    
-    @property
-    @abstractmethod
-    def name(self) -> str:
-        """Nome do bot."""
-        pass
-    
-    @abstractmethod
-    def choose_move(self, board: chess.Board) -> chess.Move:
-        """
-        Escolhe um movimento para o bot.
-        
-        Args:
-            board: Tabuleiro atual do jogo.
-            
-        Returns:
-            O movimento escolhido.
-        """
-        pass
-
-# Registro automático de bots
-class BotRegistry:
-    """Registro de bots de xadrez."""
-    
-    _bots: Dict[str, Type[ChessBot]] = {}
-    
-    @classmethod
-    def register(cls, bot_class: Type[ChessBot]) -> Type[ChessBot]:
-        """
-        Registra um bot no sistema.
-        
-        Args:
-            bot_class: Classe do bot a ser registrada.
-            
-        Returns:
-            A classe do bot registrado.
-        """
-        cls._bots[bot_class.__name__] = bot_class
-        return bot_class
-    
-    @classmethod
-    def get_all_bots(cls) -> Dict[str, Type[ChessBot]]:
-        """
-        Retorna todos os bots registrados.
-        
-        Returns:
-            Dicionário com todos os bots registrados.
-        """
-        return cls._bots.copy()
-    
-    @classmethod
-    def create_bot(cls, bot_name: str) -> ChessBot:
-        """
-        Cria uma instância de um bot pelo nome.
-        
-        Args:
-            bot_name: Nome da classe do bot.
-            
-        Returns:
-            Instância do bot solicitado.
-        """
-        if bot_name not in cls._bots:
-            raise ValueError(f"Bot não encontrado: {bot_name}")
-        return cls._bots[bot_name]()
-
-
-# Implementações de bots simples
-
-@BotRegistry.register
-class RandomBot(ChessBot):
-    """Bot que escolhe movimentos aleatórios."""
-    
-    @property
-    def name(self) -> str:
-        return "Random Bot"
-    
-    def choose_move(self, board: chess.Board) -> chess.Move:
-        moves = list(board.legal_moves)
-        return random.choice(moves)
-
-
-@BotRegistry.register
-class AggressiveBot(ChessBot):
-    """Bot que prefere capturar peças do oponente."""
-    
-    @property
-    def name(self) -> str:
-        return "Aggressive Bot"
-    
-    def choose_move(self, board: chess.Board) -> chess.Move:
-        # Primeiro, procura movimentos de captura
-        capture_moves = []
-        for move in board.legal_moves:
-            if board.is_capture(move):
-                capture_moves.append(move)
-        
-        # Se houver movimentos de captura, escolhe um aleatoriamente
-        if capture_moves:
-            return random.choice(capture_moves)
-        
-        # Caso contrário, escolhe um movimento aleatório
-        moves = list(board.legal_moves)
-        return random.choice(moves)
-
-
-@BotRegistry.register
-class DefensiveBot(ChessBot):
-    """Bot que tenta evitar perdas e prefere movimentos que não resultam em capturas imediatas."""
-    
-    @property
-    def name(self) -> str:
-        return "Defensive Bot"
-    
-    def choose_move(self, board: chess.Board) -> chess.Move:
-        safe_moves = []
-        risky_moves = []
-        
-        for move in board.legal_moves:
-            # Faz o movimento
-            board.push(move)
-            
-            # Verifica se o oponente pode capturar alguma peça
-            is_risky = False
-            for counter_move in board.legal_moves:
-                if board.is_capture(counter_move):
-                    is_risky = True
-                    break
-            
-            # Desfaz o movimento
-            board.pop()
-            
-            if is_risky:
-                risky_moves.append(move)
-            else:
-                safe_moves.append(move)
-        
-        # Prefere movimentos seguros
-        if safe_moves:
-            return random.choice(safe_moves)
-        
-        # Se não houver movimentos seguros, escolhe qualquer um
-        moves = list(board.legal_moves)
-        return random.choice(moves)
-
-
-@BotRegistry.register
-class ParanoidBot(ChessBot):
-    """Bot que tenta se mover para longe das peças do oponente."""
-    
-    @property
-    def name(self) -> str:
-        return "Paranoid Bot"
-    
-    def choose_move(self, board: chess.Board) -> chess.Move:
-        moves = list(board.legal_moves)
-        
-        # Função para calcular a "segurança" de uma posição após um movimento
-        def safety_score(move):
-            board.push(move)
-            score = 0
-            
-            # Para cada peça própria, soma a distância para a peça mais próxima do oponente
-            for square in chess.SQUARES:
-                piece = board.piece_at(square)
-                if piece and piece.color == board.turn:
-                    min_distance = 8  # Valor máximo no tabuleiro
-                    for opp_square in chess.SQUARES:
-                        opp_piece = board.piece_at(opp_square)
-                        if opp_piece and opp_piece.color != board.turn:
-                            file_dist = abs((square % 8) - (opp_square % 8))
-                            rank_dist = abs((square // 8) - (opp_square // 8))
-                            distance = max(file_dist, rank_dist)
-                            min_distance = min(min_distance, distance)
-                    score += min_distance
-            
-            board.pop()
-            return score
-        
-        # Escolhe o movimento que maximize a segurança
-        if moves:
-            return max(moves, key=safety_score)
-        
-        # Fallback, caso não haja movimentos válidos
-        return random.choice(moves) if moves else None
-
-
-@BotRegistry.register
-class ChaoticBot(ChessBot):
-    """Bot que escolhe movimentos com base no tempo atual, sendo imprevisível."""
-    
-    @property
-    def name(self) -> str:
-        return "Chaotic Bot"
-    
-    def choose_move(self, board: chess.Board) -> chess.Move:
-        moves = list(board.legal_moves)
-        
-        # Usa o timestamp atual como parte do processo de seleção
-        timestamp = int(time.time())
-        random.seed(timestamp % 100)
-        
-        # Escolhe um movimento com base no segundo atual
-        second = datetime.datetime.now().second
-        index = second % len(moves) if moves else 0
-        
-        return moves[index]
-
+# Import bots
+from bot import ChessBot, BotRegistry
+# Import all bots
+from bots import *
 
 # Sistema de torneio
 class ChessTournament:
     """Sistema para gerenciar torneios de xadrez entre bots."""
     
-    def __init__(self, bots: List[ChessBot], rounds: int = 1, move_timeout: float = 0.5, move_limit: int = 150):
+    def __init__(self, bots: List[ChessBot], rounds: int = 1, move_timeout: float = 0.5, move_limit: int = 500):
         """
         Inicializa o torneio de xadrez.
         
@@ -252,9 +46,82 @@ class ChessTournament:
         self.move_timeout = move_timeout
         self.move_limit = move_limit
         self.results = {bot.name: {"wins": 0, "losses": 0, "draws": 0, "points": 0} for bot in bots}
+        
+        # Cria pasta para armazenar os PGNs do torneio
+        self.tournament_date = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+        self.pgn_dir = f"torneio_pgns_{self.tournament_date}"
+        self._create_pgn_directory()
+    
+    def _create_pgn_directory(self):
+        """Cria o diretório para armazenar os PGNs das partidas."""
+        if not os.path.exists(self.pgn_dir):
+            os.makedirs(self.pgn_dir)
+            print(f"Diretório para PGNs criado: {self.pgn_dir}")
+    
+    def _save_pgn(self, white_bot: ChessBot, black_bot: ChessBot, moves: List[chess.Move], winner: str, reason: str, round_num: int):
+        """
+        Salva a partida em formato PGN.
+        
+        Args:
+            white_bot: Bot das peças brancas
+            black_bot: Bot das peças pretas
+            moves: Lista de movimentos da partida
+            winner: Quem venceu ('white', 'black' ou 'draw')
+            reason: Motivo do término da partida
+            round_num: Número da rodada
+        """
+        # Criar um objeto de jogo PGN
+        game = chess.pgn.Game()
+        
+        # Configurar os cabeçalhos do PGN
+        date_str = datetime.datetime.now().strftime("%Y.%m.%d")
+        time_str = datetime.datetime.now().strftime("%H:%M:%S")
+        
+        # Resultado em formato padrão PGN
+        if winner == "white":
+            result = "1-0"
+        elif winner == "black":
+            result = "0-1"
+        else:
+            result = "1/2-1/2"
+            
+        # Definir cabeçalhos com metadados
+        game.headers["Event"] = f"Torneio de Bots de Xadrez {self.tournament_date}"
+        game.headers["Site"] = "Torneio Local"
+        game.headers["Date"] = date_str
+        game.headers["Round"] = str(round_num)
+        game.headers["White"] = white_bot.name
+        game.headers["Black"] = black_bot.name
+        game.headers["Result"] = result
+        game.headers["WhiteType"] = "computer"
+        game.headers["BlackType"] = "computer"
+        game.headers["Termination"] = reason
+        game.headers["TimeControl"] = f"{self.move_timeout}s"
+        
+        # Adicionar os movimentos ao PGN
+        node = game
+        for move in moves:
+            node = node.add_variation(move)
+            
+        # Criar nome de arquivo descritivo
+        result_short = "vitoria_brancas" if winner == "white" else "vitoria_pretas" if winner == "black" else "empate"
+        clean_reason = reason.replace(" ", "_")
+        filename = f"R{round_num}_{white_bot.name}_vs_{black_bot.name}_{result_short}_{clean_reason}.pgn"
+        # Remover caracteres especiais do nome do arquivo
+        filename = "".join(c if c.isalnum() or c in "_-." else "_" for c in filename)
+        
+        # Caminho completo para o arquivo
+        pgn_path = os.path.join(self.pgn_dir, filename)
+        
+        # Salvar o PGN
+        with open(pgn_path, "w", encoding="utf-8") as pgn_file:
+            exporter = chess.pgn.FileExporter(pgn_file)
+            game.accept(exporter)
+            
+        print(f"PGN da partida salvo em: {pgn_path}")
     
     def run_match(self, white_bot: ChessBot, black_bot: ChessBot, 
-                  display: bool = False, delay: float = 0.5) -> Tuple[str, str]:
+                  display: bool = False, delay: float = 0.5, round_num: int = 1) -> Tuple[str, str]:
         """
         Executa uma partida entre dois bots.
         
@@ -263,11 +130,13 @@ class ChessTournament:
             black_bot: Bot com as peças pretas.
             display: Se True, mostra o tabuleiro usando pygame.
             delay: Tempo de espera entre movimentos quando display=True.
+            round_num: Número da rodada atual.
             
         Returns:
             Tupla com o resultado (white, black, draw) e a razão do término.
         """
         board = chess.Board()
+        game_moves = []  # Lista para armazenar os movimentos da partida
         
         if display:
             # Inicializa o visualizador pygame
@@ -288,6 +157,8 @@ class ChessTournament:
                     # Executa o movimento
                     san_move = current_board.san(move)
                     current_board.push(move)
+                    # Armazena o movimento para o PGN
+                    game_moves.append(move)
                     return current_board, san_move
                 except Exception as e:
                     print(f"Erro no bot {current_bot.name}: {e}")
@@ -345,6 +216,8 @@ class ChessTournament:
                     
                     # Executa o movimento
                     board.push(move)
+                    # Armazena o movimento para o PGN
+                    game_moves.append(move)
                     move_count += 1
                     
                 except Exception as e:
@@ -353,17 +226,20 @@ class ChessTournament:
             
             # Determinar o resultado
             if move_count >= self.move_limit:
-                return ("draw", "move limit")
-            
-            result = board.result()
-            reason = "checkmate" if board.is_checkmate() else "stalemate" if board.is_stalemate() else "draw"
-            
-            if result == "1-0":
-                winner = "white"
-            elif result == "0-1":
-                winner = "black"
+                winner, reason = "draw", "move limit"
             else:
-                winner = "draw"
+                result = board.result()
+                reason = "checkmate" if board.is_checkmate() else "stalemate" if board.is_stalemate() else "draw"
+                
+                if result == "1-0":
+                    winner = "white"
+                elif result == "0-1":
+                    winner = "black"
+                else:
+                    winner = "draw"
+        
+        # Salvar o PGN da partida
+        self._save_pgn(white_bot, black_bot, game_moves, winner, reason, round_num)
         
         return (winner, reason)
     
@@ -385,7 +261,7 @@ class ChessTournament:
             for white_bot, black_bot in matches:
                 print(f"Partida: {white_bot.name} (Brancas) vs {black_bot.name} (Pretas)")
                 
-                winner, reason = self.run_match(white_bot, black_bot, display=display_games)
+                winner, reason = self.run_match(white_bot, black_bot, display=display_games, round_num=round_num + 1)
                 
                 if winner == "white":
                     self.results[white_bot.name]["wins"] += 1
@@ -498,7 +374,7 @@ def main():
         print(f"Iniciando partida: {white_bot.name} (Brancas) vs {black_bot.name} (Pretas)")
         
         tournament = ChessTournament([white_bot, black_bot])
-        result, reason = tournament.run_match(white_bot, black_bot, display=True, delay=1.0)
+        result, reason = tournament.run_match(white_bot, black_bot, display=True, delay=1.0, round_num=1)
         
         print(f"Resultado: {result} ({reason})")
     
